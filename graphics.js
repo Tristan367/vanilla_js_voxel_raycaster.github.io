@@ -19,6 +19,8 @@ let upInput = false;
 let downInput = false;
 let rotateRightInput = false;
 let rotateLeftInput = false;
+let rotateUpInput = false;
+let rotateDownInput = false;
 
 class vec3 {
 
@@ -173,7 +175,7 @@ function createVoxelData(x, y, z) {
     return voxelData;
 }
 function createRays() {
-    let fieldOfView = .02;
+    let fieldOfView = .035;
     var rayDirections = [];
     for (let i = 0; i < totalPixels; i++) {
         rayDirections.push(new vec3(0, 0, 0)); // initializing this array to make porting this code easier
@@ -259,20 +261,41 @@ function handleInput() {
     if (downInput) {
         movDir = movDir.add(new vec3(0, -speed, 0));
     }
+    rayInfo.playerCameraPosition = rayInfo.playerCameraPosition.add(movDir); // moving the camera
+
+    // rotating the camera
     if (rotateRightInput) {
-        //movDir = rotateVectorAboutY(movDir, speed * 1);
         rayInfo.playerWorldForward = rotateVectorAboutY(rayInfo.playerWorldForward, speed * .25);
-        rayInfo.playerWorldRight = rayInfo.playerWorldForward.normalized().cross(new vec3(0, 1, 0)); // recalculating the right vector
+        rayInfo.playerWorldUp = rayInfo.playerWorldForward.cross(rayInfo.playerWorldRight); // recalculating the up vector
+        rayInfo.playerWorldRight = rayInfo.playerWorldForward.cross(new vec3(0,1,0)); // recalculating the right vector
     }
     if (rotateLeftInput) {
-
-        //movDir = rotateVectorAboutY(movDir, -speed * 0.25);
         rayInfo.playerWorldForward = rotateVectorAboutY(rayInfo.playerWorldForward, -speed * .25);
-        rayInfo.playerWorldRight = rayInfo.playerWorldForward.normalized().cross(new vec3(0, 1, 0)); // recalculating the right vector
+        rayInfo.playerWorldUp = rayInfo.playerWorldForward.cross(rayInfo.playerWorldRight); // recalculating the up vector
+        rayInfo.playerWorldRight = rayInfo.playerWorldForward.cross(new vec3(0,1,0)); // recalculating the right vector
+
     }
 
+    if (rotateUpInput) {
+        if (rayInfo.playerWorldForward.y < 1){
+            rayInfo.playerWorldForward.y += speed * 0.25;
+            rayInfo.playerWorldForward = rayInfo.playerWorldForward.normalized();
+            rayInfo.playerWorldUp = rayInfo.playerWorldForward.cross(rayInfo.playerWorldRight); // recalculating the right vector
+        };
+    }
+    if (rotateDownInput) {
+        if (rayInfo.playerWorldForward.y > -1){
+            rayInfo.playerWorldForward.y -= speed * 0.25;
+            rayInfo.playerWorldForward = rayInfo.playerWorldForward.normalized();
+            rayInfo.playerWorldUp = rayInfo.playerWorldForward.cross(rayInfo.playerWorldRight); // recalculating the right vector
+        };
+    }
 
-    rayInfo.playerCameraPosition = rayInfo.playerCameraPosition.add(movDir);
+    rayInfo.playerWorldForward = rayInfo.playerWorldForward.normalized();
+    rayInfo.playerWorldRight = rayInfo.playerWorldRight.normalized();
+    rayInfo.playerWorldUp = rayInfo.playerWorldUp.normalized();
+    
+    
 }
 
 function takeInput(event, keydown) {
@@ -303,13 +326,21 @@ function takeInput(event, keydown) {
             // up
             upInput = keydown;
             break;
-        case 81:
-            // Q
+        case 37:
+            // arrowLeft
             rotateLeftInput = keydown;
             break;
-        case 69:
+        case 39:
             // E
             rotateRightInput = keydown;
+            break;
+        case 38:
+            // arrowRight
+            rotateDownInput = keydown;
+            break;
+        case 40:
+            // arrowdown
+            rotateUpInput = keydown;
             break;
     }
 }
