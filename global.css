@@ -1,0 +1,36 @@
+
+
+body{
+    background-color: rgb(37, 37, 37);
+}
+
+.data{
+    display: none;
+}
+
+.textWhite{
+    color: whitesmoke;
+}
+
+.center {
+    text-align:center;
+ }
+
+.centerVertical {
+    padding: 0;
+    margin: auto;
+    display: block;
+    width: 100px;
+    height: 100px;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+}
+
+ .centerButton { 
+    display: flex;
+    justify-content: center;
+  }
+  
