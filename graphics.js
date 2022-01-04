@@ -54,14 +54,11 @@ function calculateRay(rayInfo) // voxelMaterials: bytes, voxelColors float4s, vo
 {
     // this would be faster with a SIMD math library
     let resultHolder = new vec3(0, 0, 0); // setting the pixel to black by default
-    let pointHolder = rayInfo.playerCameraPosition; // initializing the first point to the player's position
     let p = rayInfo.ray; // vector transformation getting the world space directions of the rays relative to the player
     let u1 = rayInfo.playerWorldRight.multiply(p.x);// p.x * rayInfo.playerWorldRight;
     let u2 = rayInfo.playerWorldUp.multiply(p.y)//p.y * rayInfo.playerWorldUp;
     let u3 = rayInfo.playerWorldForward.multiply(p.z);//p.z * rayInfo.playerWorldForward;
     let direction = u1.add(u2.add(u3));//u1 + u2 + u3; // the transformed ray direction in world space
-    let anyDir0 = direction.x == 0 || direction.y == 0 || direction.z == 0; // preventing a division by zero
-    let distanceTraveled = rayInfo.maxRayDistance * anyDir0;
 
 
     //calculate ray position and direction
@@ -69,32 +66,25 @@ function calculateRay(rayInfo) // voxelMaterials: bytes, voxelColors float4s, vo
     var rayDirY = direction.y;
     var rayDirZ = direction.z;
 
-
     //which box of the map we're in
     var mapX = parseInt(rayInfo.playerCameraPosition.x);
     var mapY = parseInt(rayInfo.playerCameraPosition.y);
     var mapZ = parseInt(rayInfo.playerCameraPosition.z);
 
-
-    //length of ray from current position to next x or y-side
     var sideDistX;
     var sideDistY;
     var sideDistZ;
 
-    //length of ray from one x or y-side to next x or y-side
     var deltaDistX = (rayDirX == 0) ? 1e30 : Math.abs(1 / rayDirX);
     var deltaDistY = (rayDirY == 0) ? 1e30 : Math.abs(1 / rayDirY);
     var deltaDistZ = (rayDirZ == 0) ? 1e30 : Math.abs(1 / rayDirZ);
 
-    var perpWallDist;
-
-    //what direction to step in x or y-direction (either +1 or -1)
     var stepX;
     var stepY;
     var stepZ;
 
-    var hit = 0; //was there a wall hit?
-    var side; //was a NS or a EW wall hit?
+    var hit = 0; // was there a wall hit?
+    var side; 
 
     //calculate step and initial sideDist
     if (rayDirX < 0)
@@ -132,7 +122,6 @@ function calculateRay(rayInfo) // voxelMaterials: bytes, voxelColors float4s, vo
     //perform DDA
     while (hit == 0)
     {
-        //jump to next map square, either in x-direction, or in y-direction
         if ((sideDistX < sideDistY) && (sideDistX < sideDistZ))
         {
             sideDistX += deltaDistX;
@@ -165,9 +154,9 @@ function calculateRay(rayInfo) // voxelMaterials: bytes, voxelColors float4s, vo
 
         const voxelIndexFlat = (mapX + (mapZ * rayInfo.voxelBufferRowSize) + (mapY * rayInfo.voxelBufferPlaneSize));
 
-        if (rayInfo.voxelMaterials[voxelIndexFlat] > 0) {
+        if (rayInfo.voxelMaterials[voxelIndexFlat] > 0) { // if it's not an empty voxel
             hit = 1;
-            resultHolder = rayInfo.voxelColors[rayInfo.voxelMaterials[voxelIndexFlat]].multiply((1.0 - (distanceTraveled / rayInfo.maxRayDistance)));
+            resultHolder = rayInfo.voxelColors[rayInfo.voxelMaterials[voxelIndexFlat]];//.multiply((1.0 - (distanceTraveled / rayInfo.maxRayDistance)));
 
             switch (side){
                 case 0:
