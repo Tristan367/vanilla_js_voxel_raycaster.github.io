@@ -1,6 +1,6 @@
 
-const width = "240";
-const height = "160";
+const width = "480";
+const height = "240";
 const pixelWidth = width;
 const pixelHeight = height;
 const totalPixels = pixelWidth * pixelHeight;
@@ -10,17 +10,7 @@ let ctx = canvas.getContext("2d");
 
 const speed = 0.1;
 var rayInfo;
-
-let forwardInput = false;
-let backwardInput = false;
-let rightInput = false;
-let leftInput = false;
-let upInput = false;
-let downInput = false;
-let rotateRightInput = false;
-let rotateLeftInput = false;
-let rotateUpInput = false;
-let rotateDownInput = false;
+var forwardInput, backwardInput, rightInput, leftInput, upInput, downInput, rotateRightInput, rotateLeftInput, rotateUpInput, rotateDownInput;
 
 class vec3 {
 
@@ -62,6 +52,7 @@ class vec3 {
 }
 function calculateRay(rayInfo) // voxelMaterials: bytes, voxelColors float4s, voxelBufferRowSize, voxelBufferPlaneSize, maxRayDistance, playerCameraPosition vec3, playerWorldForward, playerWorldRight, playerWorldUp
 {
+    // this would be faster with a SIMD math library
     let resultHolder = new vec3(0, 0, 0); // setting the pixel to black by default
     let pointHolder = rayInfo.playerCameraPosition; // initializing the first point to the player's position
     let p = rayInfo.ray; // vector transformation getting the world space directions of the rays relative to the player
@@ -72,92 +63,134 @@ function calculateRay(rayInfo) // voxelMaterials: bytes, voxelColors float4s, vo
     let anyDir0 = direction.x == 0 || direction.y == 0 || direction.z == 0; // preventing a division by zero
     let distanceTraveled = rayInfo.maxRayDistance * anyDir0;
 
-    /* 
-    let nonZeroDirection = new vec3( // to prevent a division by zero
-        direction.x + (1 * anyDir0),
-        direction.y + (1 * anyDir0),
-        direction.z + (1 * anyDir0)
-    );
 
-    let axesUnits = new vec3( // the distances if the axis is an integer
-        1.0 / Math.abs(nonZeroDirection.x),
-        1.0 / Math.abs(nonZeroDirection.y),
-        1.0 / Math.abs(nonZeroDirection.z)
-    );*/
+    //calculate ray position and direction
+    var rayDirX = direction.x;
+    var rayDirY = direction.y;
+    var rayDirZ = direction.z;
 
-    let axesUnits = new vec3(1, 1, 1);
-    if (direction.x != 0) {
-        axesUnits.x = 1.0 / Math.abs(direction.x);
+
+    //which box of the map we're in
+    var mapX = parseInt(rayInfo.playerCameraPosition.x);
+    var mapY = parseInt(rayInfo.playerCameraPosition.y);
+    var mapZ = parseInt(rayInfo.playerCameraPosition.z);
+
+
+    //length of ray from current position to next x or y-side
+    var sideDistX;
+    var sideDistY;
+    var sideDistZ;
+
+    //length of ray from one x or y-side to next x or y-side
+    var deltaDistX = (rayDirX == 0) ? 1e30 : Math.abs(1 / rayDirX);
+    var deltaDistY = (rayDirY == 0) ? 1e30 : Math.abs(1 / rayDirY);
+    var deltaDistZ = (rayDirZ == 0) ? 1e30 : Math.abs(1 / rayDirZ);
+
+    var perpWallDist;
+
+    //what direction to step in x or y-direction (either +1 or -1)
+    var stepX;
+    var stepY;
+    var stepZ;
+
+    var hit = 0; //was there a wall hit?
+    var side; //was a NS or a EW wall hit?
+
+    //calculate step and initial sideDist
+    if (rayDirX < 0)
+    {
+        stepX = -1;
+        sideDistX = (rayInfo.playerCameraPosition.x - mapX) * deltaDistX;
     }
-    if (direction.y != 0) {
-        axesUnits.y = 1.0 / Math.abs(direction.y);
+    else
+    {
+        stepX = 1;
+        sideDistX = (mapX + 1.0 - rayInfo.playerCameraPosition.x) * deltaDistX;
     }
-    if (direction.z != 0) {
-        axesUnits.z = 1.0 / Math.abs(direction.z);
+    if (rayDirY < 0)
+    {
+        stepY = -1;
+        sideDistY = (rayInfo.playerCameraPosition.y - mapY) * deltaDistY;
+    }
+    else
+    {
+        stepY = 1;
+        sideDistY = (mapY + 1.0 - rayInfo.playerCameraPosition.y) * deltaDistY;
+    }
+    if (rayDirZ < 0)
+    {
+        stepZ = -1;
+        sideDistZ = (rayInfo.playerCameraPosition.z - mapZ) * deltaDistZ;
+    }
+    else
+    {
+        stepZ = 1;
+        sideDistZ = (mapZ + 1.0 - rayInfo.playerCameraPosition.z) * deltaDistZ;
     }
 
-    let isDirectionPositiveOr0 = new vec3(
-        direction.x >= 0,
-        direction.y >= 0,
-        direction.z >= 0
-    );
 
-    while (distanceTraveled < rayInfo.maxRayDistance) {
-        let pointIsAnInteger = new vec3(
-            parseInt(pointHolder.x) == pointHolder.x,
-            parseInt(pointHolder.y) == pointHolder.y,
-            parseInt(pointHolder.z) == pointHolder.z
-        );
-
-        let distancesXYZ = new vec3(
-            ((Math.floor(pointHolder.x + isDirectionPositiveOr0.x) - pointHolder.x) / direction.x * !pointIsAnInteger.x) + (axesUnits.x * pointIsAnInteger.x),
-            ((Math.floor(pointHolder.y + isDirectionPositiveOr0.y) - pointHolder.y) / direction.y * !pointIsAnInteger.y) + (axesUnits.y * pointIsAnInteger.y),
-            ((Math.floor(pointHolder.z + isDirectionPositiveOr0.z) - pointHolder.z) / direction.z * !pointIsAnInteger.z) + (axesUnits.z * pointIsAnInteger.z)
-        );
-
-        let smallestDistance = Math.min(distancesXYZ.x, distancesXYZ.y);
-        smallestDistance = Math.min(smallestDistance, distancesXYZ.z);
-
-
-        pointHolder = pointHolder.add(direction.multiply(smallestDistance));
-        distanceTraveled += smallestDistance;
-
-
-        let voxelIndexXYZ = new vec3(Math.floor(pointHolder.x), Math.floor(pointHolder.y), Math.floor(pointHolder.z));
-        // = new vec3(Math.floor(pointHolder.x) - (!isDirectionPositiveOr0.x && (parseInt(pointHolder.x) == pointHolder.x)), 
-        //Math.floor(pointHolder.y) - (!isDirectionPositiveOr0.y && (parseInt(pointHolder.y) == pointHolder.y)), 
-        //Math.floor(pointHolder.z) - (!isDirectionPositiveOr0.z && (parseInt(pointHolder.z) == pointHolder.z)));
-
-        if (!isDirectionPositiveOr0.x && (parseInt(pointHolder.x) == pointHolder.x)) {
-            voxelIndexXYZ.x -= 1;
+    //perform DDA
+    while (hit == 0)
+    {
+        //jump to next map square, either in x-direction, or in y-direction
+        if ((sideDistX < sideDistY) && (sideDistX < sideDistZ))
+        {
+            sideDistX += deltaDistX;
+            mapX += stepX;
+            side = 0;
         }
-        if (!isDirectionPositiveOr0.y && (parseInt(pointHolder.y) == pointHolder.y)) {
-            voxelIndexXYZ.y -= 1;
+        else if (sideDistY < sideDistZ)
+        {
+            sideDistY += deltaDistY;
+            mapY += stepY;
+            side = 1;
         }
-        if (!isDirectionPositiveOr0.z && (parseInt(pointHolder.z) == pointHolder.z)) {
-            voxelIndexXYZ.z -= 1;
+        else
+        {
+            sideDistZ += deltaDistZ;
+            mapZ += stepZ;
+            side = 2;
         }
 
+        const inBounds = 
+        ((mapX < rayInfo.voxelBufferRowSize) && (mapX >= 0)) && 
+        ((mapY < rayInfo.voxelBufferRowSize) && (mapY >= 0)) && 
+        ((mapZ < rayInfo.voxelBufferRowSize) && (mapZ >= 0));
 
-        const inBounds = ((voxelIndexXYZ.x < rayInfo.voxelBufferRowSize) && (voxelIndexXYZ.x >= 0))
-            && ((voxelIndexXYZ.y < rayInfo.voxelBufferRowSize) && (voxelIndexXYZ.y >= 0))
-            && ((voxelIndexXYZ.z < rayInfo.voxelBufferRowSize) && (voxelIndexXYZ.z >= 0));
 
+        //Check if ray has hit a wall
         if (!inBounds) {
-            resultHolder = new vec3(0, 0, 0);
-            return resultHolder;
+            break;
         }
 
-        const voxelIndexFlat = (voxelIndexXYZ.x + (voxelIndexXYZ.z * rayInfo.voxelBufferRowSize) + (voxelIndexXYZ.y * rayInfo.voxelBufferPlaneSize)) * inBounds; // meaning the voxel on 0,0,0 will always be empty and act as a our index out of range prevention
+        const voxelIndexFlat = (mapX + (mapZ * rayInfo.voxelBufferRowSize) + (mapY * rayInfo.voxelBufferPlaneSize));
 
         if (rayInfo.voxelMaterials[voxelIndexFlat] > 0) {
+            hit = 1;
             resultHolder = rayInfo.voxelColors[rayInfo.voxelMaterials[voxelIndexFlat]].multiply((1.0 - (distanceTraveled / rayInfo.maxRayDistance)));
+
+            switch (side){
+                case 0:
+                    resultHolder = resultHolder.multiply(0.75,0.75,0.75);
+                    break;
+                case 2:
+                    resultHolder = resultHolder.multiply(0.5,0.5,0.5);
+                    break;
+                default:
+                    break;
+            }
+
             return resultHolder;
         }
 
+
     }
+
     return resultHolder;
 }
+
+
+
 function rotateVectorAboutY(v, angle) {
     return new vec3((v.x * Math.cos(angle)) - (v.z * Math.sin(angle)), v.y, (v.x * Math.sin(angle)) + (v.z * Math.cos(angle)));
 }
@@ -175,19 +208,43 @@ function createVoxelData(x, y, z) {
     return voxelData;
 }
 function createRays() {
-    let fieldOfView = .035;
+
+    let fieldOfView = .66;
+
+
+    let dirX = 0, dirY = 0, dirZ = 1; //initial direction vector
+    let planeX = fieldOfView, planeY = fieldOfView / (pixelWidth / pixelHeight), planeZ = 0;// 0.66; //the 2d raycaster version of camera plane
+
+
     var rayDirections = [];
     for (let i = 0; i < totalPixels; i++) {
         rayDirections.push(new vec3(0, 0, 0)); // initializing this array to make porting this code easier
     }
-    let coordOffsetX = pixelWidth / 2;
-    let coordOffsetY = pixelHeight / 2;
+
     for (let x = 0; x < pixelWidth; x++) {
         for (let y = 0; y < pixelHeight; y++) {
-            rayDirections[x + (y * pixelWidth)] = new vec3((x - coordOffsetX) * fieldOfView, (y - coordOffsetY) * fieldOfView, 5).normalized();
+
+            //calculate ray position and direction
+            let cameraX = 2 * x / parseFloat(pixelWidth) - 1; //x-coordinate in camera space
+
+            let cameraY = 2 * y / parseFloat(pixelHeight) - 1; 
+
+            let rayDirX = dirX + planeX * cameraX;
+            let rayDirY = dirY + planeY * cameraY;
+            let rayDirZ = dirZ;
+
+
+            rayDirections[x + (y * pixelWidth)] = new vec3(rayDirX, rayDirY, rayDirZ);
+
         }
     }
+
+
+
+
     return rayDirections;
+
+
 }
 function voxelPixels(imageData, rayInfo) {
     let data = imageData.data;
@@ -202,6 +259,9 @@ function voxelPixels(imageData, rayInfo) {
     }
     ctx.putImageData(imageData, 0, 0);
 }
+
+
+
 
 window.onload = function () {
 
@@ -233,6 +293,9 @@ window.onload = function () {
 
     setInterval(function () { gameLoop(imageData, rayInfo) }, 16); // basically the game loop
 }
+
+
+
 
 function gameLoop(imageData, rayInfo) {
 
